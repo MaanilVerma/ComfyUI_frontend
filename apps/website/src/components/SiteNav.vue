@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+
+import type { Locale } from '../i18n/translations'
+import { t } from '../i18n/translations'
+
+const { locale = 'en' } = defineProps<{ locale?: Locale }>()
 
 const mobileMenuOpen = ref(false)
 
-const navLinks = [
-  { label: 'ENTERPRISE', href: '/enterprise' },
-  { label: 'GALLERY', href: '/gallery' },
-  { label: 'ABOUT', href: '/about' },
-  { label: 'CAREERS', href: '/careers' }
-]
+const navLinks = computed(() => [
+  { label: t('nav.enterprise', locale), href: '/enterprise' },
+  { label: t('nav.gallery', locale), href: '/gallery' },
+  { label: t('nav.about', locale), href: '/about' },
+  { label: t('nav.careers', locale), href: '/careers' }
+])
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape' && mobileMenuOpen.value) {
@@ -56,13 +61,13 @@ onUnmounted(() => {
             href="https://app.comfy.org"
             class="rounded-full bg-brand-yellow px-5 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90"
           >
-            COMFY CLOUD
+            {{ t('nav.cloud', locale) }}
           </a>
           <a
             href="https://hub.comfy.org"
             class="rounded-full border border-brand-yellow px-5 py-2 text-sm font-semibold text-brand-yellow transition-colors hover:bg-brand-yellow hover:text-black"
           >
-            COMFY HUB
+            {{ t('nav.hub', locale) }}
           </a>
         </div>
       </div>
@@ -112,13 +117,13 @@ onUnmounted(() => {
             href="https://app.comfy.org"
             class="rounded-full bg-brand-yellow px-5 py-2 text-center text-sm font-semibold text-black transition-opacity hover:opacity-90"
           >
-            COMFY CLOUD
+            {{ t('nav.cloud', locale) }}
           </a>
           <a
             href="https://hub.comfy.org"
             class="rounded-full border border-brand-yellow px-5 py-2 text-center text-sm font-semibold text-brand-yellow transition-colors hover:bg-brand-yellow hover:text-black"
           >
-            COMFY HUB
+            {{ t('nav.hub', locale) }}
           </a>
         </div>
       </div>

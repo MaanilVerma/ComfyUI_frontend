@@ -1,5 +1,10 @@
 <!-- PLACEHOLDER: Awaiting real quotes and case study content from Baira -->
 <script setup lang="ts">
+import type { Locale } from '../i18n/translations'
+import { t } from '../i18n/translations'
+
+const { locale = 'en' } = defineProps<{ locale?: Locale }>()
+
 const studies = [
   {
     title: 'New Pipelines with Chord Mode',
@@ -24,9 +29,11 @@ const studies = [
   <section class="bg-black px-6 py-24">
     <div class="mx-auto max-w-7xl">
       <header class="mb-12">
-        <h2 class="text-3xl font-bold text-white">Customer Stories</h2>
+        <h2 class="text-3xl font-bold text-white">
+          {{ t('caseStudy.heading', locale) }}
+        </h2>
         <p class="mt-2 text-smoke-700">
-          See how leading studios use Comfy in production
+          {{ t('caseStudy.subheading', locale) }}
         </p>
       </header>
 
@@ -55,7 +62,7 @@ const studies = [
           <h3 class="font-semibold text-white">{{ studies[0].title }}</h3>
           <p class="mt-2 text-sm text-smoke-700">{{ studies[0].body }}</p>
           <a href="#" class="mt-4 text-sm text-brand-yellow underline">
-            READ CASE STUDY
+            {{ t('caseStudy.readMore', locale) }}
           </a>
         </article>
 
@@ -66,7 +73,7 @@ const studies = [
           <h3 class="font-semibold text-white">{{ studies[1].title }}</h3>
           <p class="mt-2 text-sm text-smoke-700">{{ studies[1].body }}</p>
           <a href="#" class="mt-4 text-sm text-brand-yellow underline">
-            READ CASE STUDY
+            {{ t('caseStudy.readMore', locale) }}
           </a>
         </article>
 
@@ -77,7 +84,7 @@ const studies = [
           <h3 class="font-semibold text-white">{{ studies[2].title }}</h3>
           <p class="mt-2 text-sm text-smoke-700">{{ studies[2].body }}</p>
           <a href="#" class="mt-4 text-sm text-brand-yellow underline">
-            READ CASE STUDY
+            {{ t('caseStudy.readMore', locale) }}
           </a>
         </article>
 
@@ -88,7 +95,7 @@ const studies = [
           <h3 class="font-semibold text-black">{{ studies[3].title }}</h3>
           <p class="mt-2 text-sm text-black/70">{{ studies[3].body }}</p>
           <a href="#" class="mt-4 text-sm text-black underline">
-            READ CASE STUDY
+            {{ t('caseStudy.readMore', locale) }}
           </a>
         </article>
       </div>
