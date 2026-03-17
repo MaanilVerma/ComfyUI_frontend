@@ -1,4 +1,6 @@
-<!-- PLACEHOLDER: This section will change per Baira's feedback -->
+<!-- PLACEHOLDER: This section will change per Baira's feedback.
+     activeCategory currently only highlights the selected button —
+     content swap will be wired when final assets arrive. -->
 <script setup lang="ts">
 import { ref } from 'vue'
 

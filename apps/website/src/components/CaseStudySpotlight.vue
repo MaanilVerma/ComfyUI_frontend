@@ -3,23 +3,19 @@
 const studies = [
   {
     title: 'New Pipelines with Chord Mode',
-    body: 'For AI-assisted texture and environment generation across studio pipelines.',
-    size: 'tall' as const
+    body: 'For AI-assisted texture and environment generation across studio pipelines.'
   },
   {
     title: 'AI-Assisted Texture and Environment',
-    body: 'For AI-assisted texture and environment generation across studio pipelines.',
-    size: 'wide' as const
+    body: 'For AI-assisted texture and environment generation across studio pipelines.'
   },
   {
     title: 'Open-sourced the Chord Mode',
-    body: 'For AI-assisted texture and environment generation across studio pipelines.',
-    size: 'small' as const
+    body: 'For AI-assisted texture and environment generation across studio pipelines.'
   },
   {
     title: 'Environment Generation',
-    body: 'For AI-assisted texture and environment generation across studio pipelines.',
-    size: 'highlight' as const
+    body: 'For AI-assisted texture and environment generation across studio pipelines.'
   }
 ]
 </script>
