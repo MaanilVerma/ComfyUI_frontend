@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick, ref, shallowRef } from 'vue'
+import { nextTick, reactive, ref, shallowRef } from 'vue'
 
 import { useGLSLPreview } from '@/renderer/glsl/useGLSLPreview'
 import { useWidgetValueStore } from '@/stores/widgetValueStore'
@@ -54,14 +54,14 @@ vi.mock('@/renderer/glsl/useGLSLRenderer', () => ({
     mockRendererFactory.create(config)
 }))
 
-const mockGetNodeOutputs = vi.fn()
 const mockSetNodePreviewsByNodeId = vi.fn()
+const mockNodeOutputs = reactive<Record<string, unknown>>({})
 
 vi.mock('@/stores/nodeOutputStore', () => ({
   useNodeOutputStore: () => ({
-    getNodeOutputs: mockGetNodeOutputs,
     setNodePreviewsByNodeId: mockSetNodePreviewsByNodeId,
-    nodeOutputs: ref({})
+    setNodePreviewsByLocatorId: vi.fn(),
+    nodeOutputs: mockNodeOutputs
   })
 }))
 
@@ -85,13 +85,20 @@ vi.mock('@/platform/workflow/management/stores/workflowStore', () => ({
   })
 }))
 
+vi.mock('@/utils/objectUrlUtil', () => ({
+  createSharedObjectUrl: () => 'blob:test',
+  releaseSharedObjectUrl: vi.fn()
+}))
+
 function createMockNode(overrides: Record<string, unknown> = {}): LGraphNode {
+  const graph = { id: 'test-graph-id', rootGraph: { id: 'test-graph-id' } }
   return {
     id: 1,
     type: 'GLSLShader',
     inputs: [],
-    graph: { id: 'test-graph-id' },
+    graph,
     getInputNode: vi.fn(() => null),
+    isSubgraphNode: () => false,
     ...overrides
   } as unknown as LGraphNode
 }
@@ -119,16 +126,16 @@ describe('useGLSLPreview', () => {
 
   it('does not activate before first execution', () => {
     const node = createMockNode()
-    mockGetNodeOutputs.mockReturnValue(undefined)
+    Object.keys(mockNodeOutputs).forEach((k) => delete mockNodeOutputs[k])
     const { isActive } = useGLSLPreview(wrapNode(node))
     expect(isActive.value).toBe(false)
   })
 
   it('activates for GLSLShader nodes with execution output', () => {
     const node = createMockNode()
-    mockGetNodeOutputs.mockReturnValue({
+    mockNodeOutputs['1'] = {
       images: [{ filename: 'test.png', subfolder: '', type: 'temp' }]
-    })
+    }
     const { isActive } = useGLSLPreview(wrapNode(node))
     expect(isActive.value).toBe(true)
   })
@@ -160,9 +167,9 @@ describe('useGLSLPreview', () => {
     })
 
     async function triggerRender(node: LGraphNode) {
-      mockGetNodeOutputs.mockReturnValue({
+      mockNodeOutputs[String(node.id)] = {
         images: [{ filename: 'test.png', subfolder: '', type: 'temp' }]
-      })
+      }
       const store = useWidgetValueStore() as unknown as {
         _widgetMap: Map<string, { value: unknown }>
       }

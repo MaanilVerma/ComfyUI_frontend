@@ -3,12 +3,19 @@ import { computed, onScopeDispose, ref, toValue, watch } from 'vue'
 
 import type { MaybeRefOrGetter } from 'vue'
 import type { LGraphNode, NodeId } from '@/lib/litegraph/src/LGraphNode'
+import { SUBGRAPH_INPUT_ID } from '@/lib/litegraph/src/constants'
+import type { Subgraph } from '@/lib/litegraph/src/subgraph/Subgraph'
 import type { UUID } from '@/lib/litegraph/src/utils/uuid'
+import { useWorkflowStore } from '@/platform/workflow/management/stores/workflowStore'
 import { useNodeOutputStore } from '@/stores/nodeOutputStore'
 import { useWidgetValueStore } from '@/stores/widgetValueStore'
 
 import type { GLSLRendererConfig } from '@/renderer/glsl/useGLSLRenderer'
 import { useGLSLRenderer } from '@/renderer/glsl/useGLSLRenderer'
+import {
+  createSharedObjectUrl,
+  releaseSharedObjectUrl
+} from '@/utils/objectUrlUtil'
 
 const GLSL_NODE_TYPE = 'GLSLShader'
 const DEBOUNCE_MS = 50
@@ -19,6 +26,11 @@ interface AutogrowGroup {
   max: number
   min: number
   prefix?: string
+}
+
+interface UniformSource {
+  nodeId: NodeId
+  widgetName: string
 }
 
 function getAutogrowLimits(node: LGraphNode): GLSLRendererConfig {
@@ -61,6 +73,61 @@ function clampResolution(w: number, h: number): [number, number] {
   return [Math.round(w * scale), Math.round(h * scale)]
 }
 
+function getImageThroughSubgraphBoundary(
+  node: LGraphNode,
+  slot: number,
+  ownerSubgraphNode: LGraphNode
+): HTMLImageElement | undefined {
+  const graph = node.graph
+  if (!graph) return undefined
+
+  const input = node.inputs[slot]
+  if (input?.link == null) return undefined
+
+  const link = graph._links.get(input.link)
+  if (!link || link.origin_id !== SUBGRAPH_INPUT_ID) return undefined
+
+  const outerUpstream = ownerSubgraphNode.getInputNode(link.origin_slot)
+  if (!outerUpstream?.imgs?.length) return undefined
+
+  return outerUpstream.imgs[0]
+}
+
+function extractUniformSources(
+  glslNode: LGraphNode,
+  subgraph: Subgraph
+): { floats: UniformSource[]; ints: UniformSource[] } {
+  const floats: UniformSource[] = []
+  const ints: UniformSource[] = []
+
+  if (!glslNode.inputs) return { floats, ints }
+
+  for (const input of glslNode.inputs) {
+    if (input.link == null) continue
+
+    const link = subgraph.getLink(input.link)
+    if (!link || link.origin_id === SUBGRAPH_INPUT_ID) continue
+
+    const sourceNode = subgraph.getNodeById(link.origin_id)
+    if (!sourceNode?.widgets?.[0]) continue
+
+    const inputName = input.name ?? ''
+    const dotIndex = inputName.indexOf('.')
+    if (dotIndex === -1) continue
+
+    const prefix = inputName.slice(0, dotIndex)
+    const source: UniformSource = {
+      nodeId: sourceNode.id as NodeId,
+      widgetName: sourceNode.widgets[0].name
+    }
+
+    if (prefix === 'floats') floats.push(source)
+    else if (prefix === 'ints') ints.push(source)
+  }
+
+  return { floats, ints }
+}
+
 export function useGLSLPreview(
   nodeMaybe: MaybeRefOrGetter<LGraphNode | null | undefined>
 ) {
@@ -70,78 +137,185 @@ export function useGLSLPreview(
 
   let renderer: ReturnType<typeof useGLSLRenderer> | null = null
   let rendererReady = false
-  let currentBlobUrl: string | null = null
   let renderRequestId = 0
 
   const nodeRef = computed(() => toValue(nodeMaybe) ?? null)
 
   const isGLSLNode = computed(() => nodeRef.value?.type === GLSL_NODE_TYPE)
 
-  const graphId = computed(() => nodeRef.value?.graph?.id as UUID | undefined)
+  const innerGLSLNode = computed(() => {
+    const node = nodeRef.value
+    if (!node?.isSubgraphNode()) return null
+    const subgraph = node.subgraph as Subgraph | undefined
+    return subgraph?.nodes.find((n) => n.type === GLSL_NODE_TYPE) ?? null
+  })
+
+  const isGLSLSubgraphNode = computed(() => innerGLSLNode.value !== null)
+
+  const ownerSubgraphNode = computed(() => {
+    const node = nodeRef.value
+    const graph = node?.graph
+    if (!graph) return null
+    const rootGraph = graph.rootGraph
+    if (!rootGraph || graph === rootGraph) return null
+
+    return (
+      rootGraph._nodes.find(
+        (n) => n.isSubgraphNode() && n.subgraph === graph
+      ) ?? null
+    )
+  })
+
+  const graphId = computed(
+    () => nodeRef.value?.graph?.rootGraph?.id as UUID | undefined
+  )
 
   const nodeId = computed(() => nodeRef.value?.id as NodeId | undefined)
+
+  const { nodeToNodeLocatorId } = useWorkflowStore()
 
   const hasExecutionOutput = computed(() => {
     const node = nodeRef.value
     if (!node) return false
-    return !!nodeOutputStore.getNodeOutputs(node)?.images?.length
+
+    const outputs = nodeOutputStore.nodeOutputs
+
+    const locatorId = nodeToNodeLocatorId(node)
+    if (outputs[locatorId]?.images?.length) return true
+
+    const inner = innerGLSLNode.value
+    if (inner) {
+      const innerLocatorId = nodeToNodeLocatorId(inner)
+      if (outputs[innerLocatorId]?.images?.length) return true
+    }
+
+    return false
   })
 
-  const isActive = computed(() => isGLSLNode.value && hasExecutionOutput.value)
+  const isActive = computed(
+    () =>
+      (isGLSLNode.value || isGLSLSubgraphNode.value) && hasExecutionOutput.value
+  )
 
   const shaderSource = computed(() => {
     const gId = graphId.value
-    const nId = nodeId.value
-    if (!gId || nId == null) return undefined
-    return widgetValueStore.getWidget(gId, nId, 'fragment_shader')?.value as
-      | string
-      | undefined
+    if (!gId) return undefined
+
+    // Direct GLSLShader
+    if (isGLSLNode.value) {
+      const nId = nodeId.value
+      if (nId == null) return undefined
+      return widgetValueStore.getWidget(gId, nId, 'fragment_shader')?.value as
+        | string
+        | undefined
+    }
+
+    const inner = innerGLSLNode.value
+    if (inner) {
+      return widgetValueStore.getWidget(
+        gId,
+        inner.id as NodeId,
+        'fragment_shader'
+      )?.value as string | undefined
+    }
+
+    return undefined
   })
 
   const rendererConfig = computed(() => {
+    const inner = innerGLSLNode.value
+    if (inner) return getAutogrowLimits(inner)
+
     const node = nodeRef.value
     if (!node) return { maxInputs: 5, maxFloatUniforms: 5, maxIntUniforms: 5 }
     return getAutogrowLimits(node)
   })
 
-  const floatValues = computed(() => {
-    const gId = graphId.value
-    const nId = nodeId.value
-    if (!gId || nId == null) return []
-
-    const values: number[] = []
-    for (let i = 0; i < rendererConfig.value.maxFloatUniforms; i++) {
-      const widget = widgetValueStore.getWidget(gId, nId, `floats.u_float${i}`)
-      if (widget === undefined) break
-      values.push(Number(widget.value) || 0)
-    }
-    return values
+  const uniformSources = computed(() => {
+    const node = nodeRef.value
+    const inner = innerGLSLNode.value
+    if (!node?.isSubgraphNode() || !inner) return null
+    return extractUniformSources(inner, node.subgraph as Subgraph)
   })
 
-  const intValues = computed(() => {
+  function collectUniformValues(
+    subgraphSources: UniformSource[] | undefined,
+    groupName: string,
+    uniformPrefix: string,
+    maxCount: number
+  ): number[] {
     const gId = graphId.value
+    if (!gId) return []
+
+    if (subgraphSources) {
+      return subgraphSources.map(({ nodeId: nId, widgetName }) => {
+        const widget = widgetValueStore.getWidget(gId, nId, widgetName)
+        return Number(widget?.value ?? 0) || 0
+      })
+    }
+
     const nId = nodeId.value
-    if (!gId || nId == null) return []
+    const node = nodeRef.value
+    if (nId == null || !node) return []
 
     const values: number[] = []
-    for (let i = 0; i < rendererConfig.value.maxIntUniforms; i++) {
-      const widget = widgetValueStore.getWidget(gId, nId, `ints.u_int${i}`)
-      if (widget === undefined) break
-      values.push(Number(widget.value) || 0)
+    for (let i = 0; i < maxCount; i++) {
+      const inputName = `${groupName}.${uniformPrefix}${i}`
+      const widget = widgetValueStore.getWidget(gId, nId, inputName)
+      if (widget !== undefined) {
+        values.push(Number(widget.value) || 0)
+        continue
+      }
+
+      const slot = node.inputs?.findIndex((inp) => inp.name === inputName)
+      if (slot == null || slot < 0) break
+
+      const upstreamNode = node.getInputNode(slot)
+      if (!upstreamNode) break
+      const upstreamWidgets = widgetValueStore.getNodeWidgets(
+        gId,
+        upstreamNode.id as NodeId
+      )
+      if (upstreamWidgets.length === 0) break
+      values.push(Number(upstreamWidgets[0].value) || 0)
     }
     return values
-  })
-
-  function revokeBlobUrl(): void {
-    if (currentBlobUrl) {
-      URL.revokeObjectURL(currentBlobUrl)
-      currentBlobUrl = null
-    }
   }
+
+  const floatValues = computed(() =>
+    collectUniformValues(
+      uniformSources.value?.floats,
+      'floats',
+      'u_float',
+      rendererConfig.value.maxFloatUniforms
+    )
+  )
+
+  const intValues = computed(() =>
+    collectUniformValues(
+      uniformSources.value?.ints,
+      'ints',
+      'u_int',
+      rendererConfig.value.maxIntUniforms
+    )
+  )
 
   function loadInputImages(): void {
     const node = nodeRef.value
     if (!node?.inputs || !renderer) return
+
+    if (isGLSLSubgraphNode.value) {
+      let imageSlotIndex = 0
+      for (let slot = 0; slot < node.inputs.length; slot++) {
+        if (node.inputs[slot].type !== 'IMAGE') continue
+        const upstreamNode = node.getInputNode(slot)
+        if (upstreamNode?.imgs?.length) {
+          renderer.bindInputImage(imageSlotIndex, upstreamNode.imgs[0])
+        }
+        imageSlotIndex++
+      }
+      return
+    }
 
     let imageSlotIndex = 0
     for (let slot = 0; slot < node.inputs.length; slot++) {
@@ -149,11 +323,18 @@ export function useGLSLPreview(
       if (!input.name.startsWith('images.image')) continue
 
       const upstreamNode = node.getInputNode(slot)
-      if (!upstreamNode) continue
+      if (upstreamNode?.imgs?.length) {
+        renderer.bindInputImage(imageSlotIndex, upstreamNode.imgs[0])
+        imageSlotIndex++
+        continue
+      }
 
-      const imgs = upstreamNode.imgs
-      if (imgs?.length) {
-        renderer.bindInputImage(imageSlotIndex, imgs[0])
+      const owner = ownerSubgraphNode.value
+      if (owner) {
+        const img = getImageThroughSubgraphBoundary(node, slot, owner)
+        if (img) {
+          renderer.bindInputImage(imageSlotIndex, img)
+        }
       }
       imageSlotIndex++
     }
@@ -163,18 +344,43 @@ export function useGLSLPreview(
     const node = nodeRef.value
     if (!node?.inputs) return [DEFAULT_SIZE, DEFAULT_SIZE]
 
+    if (isGLSLSubgraphNode.value) {
+      for (let slot = 0; slot < node.inputs.length; slot++) {
+        if (node.inputs[slot].type !== 'IMAGE') continue
+        const upstreamNode = node.getInputNode(slot)
+        if (!upstreamNode?.imgs?.length) continue
+        const img = upstreamNode.imgs[0]
+        return clampResolution(
+          img.naturalWidth || DEFAULT_SIZE,
+          img.naturalHeight || DEFAULT_SIZE
+        )
+      }
+      return [DEFAULT_SIZE, DEFAULT_SIZE]
+    }
+
     for (let slot = 0; slot < node.inputs.length; slot++) {
       const input = node.inputs[slot]
       if (!input.name.startsWith('images.image')) continue
 
       const upstreamNode = node.getInputNode(slot)
-      if (!upstreamNode?.imgs?.length) continue
+      if (upstreamNode?.imgs?.length) {
+        const img = upstreamNode.imgs[0]
+        return clampResolution(
+          img.naturalWidth || DEFAULT_SIZE,
+          img.naturalHeight || DEFAULT_SIZE
+        )
+      }
 
-      const img = upstreamNode.imgs[0]
-      return clampResolution(
-        img.naturalWidth || DEFAULT_SIZE,
-        img.naturalHeight || DEFAULT_SIZE
-      )
+      const owner = ownerSubgraphNode.value
+      if (owner) {
+        const img = getImageThroughSubgraphBoundary(node, slot, owner)
+        if (img) {
+          return clampResolution(
+            img.naturalWidth || DEFAULT_SIZE,
+            img.naturalHeight || DEFAULT_SIZE
+          )
+        }
+      }
     }
 
     const gId = graphId.value
@@ -248,13 +454,20 @@ export function useGLSLPreview(
 
       const blob = await r.toBlob()
       if (requestId !== renderRequestId) return
-      revokeBlobUrl()
-      currentBlobUrl = URL.createObjectURL(blob)
+      const blobUrl = createSharedObjectUrl(blob)
 
-      const nId = nodeId.value
-      if (nId != null) {
-        nodeOutputStore.setNodePreviewsByNodeId(nId, [currentBlobUrl])
+      const inner = innerGLSLNode.value
+      if (inner) {
+        const innerLocatorId = nodeToNodeLocatorId(inner)
+        nodeOutputStore.setNodePreviewsByLocatorId(innerLocatorId, [blobUrl])
+      } else {
+        const nId = nodeId.value
+        if (nId != null) {
+          nodeOutputStore.setNodePreviewsByNodeId(nId, [blobUrl])
+        }
       }
+
+      releaseSharedObjectUrl(blobUrl)
     } catch (error) {
       if (requestId !== renderRequestId) return
       lastError.value =
@@ -265,6 +478,18 @@ export function useGLSLPreview(
   const debouncedRender = debounce((): void => {
     void renderPreview()
   }, DEBOUNCE_MS)
+
+  watch(
+    isActive,
+    (active) => {
+      if (isGLSLNode.value) {
+        const node = nodeRef.value
+        if (node) node.hideOutputImages = active
+      }
+      if (active) debouncedRender()
+    },
+    { immediate: true }
+  )
 
   watch(
     () => [floatValues.value, intValues.value] as const,
@@ -280,7 +505,6 @@ export function useGLSLPreview(
 
   function dispose(): void {
     debouncedRender.cancel()
-    revokeBlobUrl()
     renderer?.dispose()
   }
 

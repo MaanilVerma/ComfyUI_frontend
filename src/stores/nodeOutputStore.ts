@@ -280,17 +280,12 @@ export const useNodeOutputStore = defineStore('nodeOutput', () => {
   }
 
   /**
-   * Set node preview images by node ID.
-   * Uses the current graph context to create the appropriate NodeLocatorId.
-   *
-   * @param nodeId - The node ID
-   * @param previewImages - Array of preview image URLs to store
+   * Set node preview images by NodeLocatorId directly.
    */
-  function setNodePreviewsByNodeId(
-    nodeId: string | number,
+  function setNodePreviewsByLocatorId(
+    nodeLocatorId: NodeLocatorId,
     previewImages: string[]
   ) {
-    const nodeLocatorId = nodeIdToNodeLocatorId(nodeId)
     const existingPreviews = app.nodePreviewImages[nodeLocatorId]
     if (scheduledRevoke[nodeLocatorId]) {
       scheduledRevoke[nodeLocatorId].stop()
@@ -306,6 +301,20 @@ export const useNodeOutputStore = defineStore('nodeOutput', () => {
     }
     app.nodePreviewImages[nodeLocatorId] = previewImages
     nodePreviewImages.value[nodeLocatorId] = previewImages
+  }
+
+  /**
+   * Set node preview images by node ID.
+   * Uses the current graph context to create the appropriate NodeLocatorId.
+   *
+   * @param nodeId - The node ID
+   * @param previewImages - Array of preview image URLs to store
+   */
+  function setNodePreviewsByNodeId(
+    nodeId: string | number,
+    previewImages: string[]
+  ) {
+    setNodePreviewsByLocatorId(nodeIdToNodeLocatorId(nodeId), previewImages)
   }
 
   /**
@@ -486,6 +495,7 @@ export const useNodeOutputStore = defineStore('nodeOutput', () => {
     setNodeOutputs,
     setNodeOutputsByExecutionId,
     setNodePreviewsByExecutionId,
+    setNodePreviewsByLocatorId,
     setNodePreviewsByNodeId,
     updateNodeImages,
     refreshNodeOutputs,
