@@ -29,7 +29,9 @@ export interface AuthStoreMockControls {
   logout: Mock
   getIdToken: Mock
   getAuthHeader: Mock
+  getAuthHeaderOrThrow: Mock
   getFirebaseAuthHeader: Mock
+  getFirebaseAuthHeaderOrThrow: Mock
   getAuthToken: Mock
   createCustomer: Mock
   fetchBalance: Mock
@@ -64,7 +66,13 @@ export function createAuthStoreMock(): {
     logout: vi.fn(),
     getIdToken: vi.fn().mockResolvedValue('mock-id-token'),
     getAuthHeader: vi.fn().mockResolvedValue(null),
+    getAuthHeaderOrThrow: vi.fn().mockResolvedValue({
+      Authorization: 'Bearer mock-id-token'
+    }),
     getFirebaseAuthHeader: vi.fn().mockResolvedValue(null),
+    getFirebaseAuthHeaderOrThrow: vi.fn().mockResolvedValue({
+      Authorization: 'Bearer mock-id-token'
+    }),
     getAuthToken: vi.fn().mockResolvedValue(undefined),
     createCustomer: vi.fn(),
     fetchBalance: vi.fn(),
