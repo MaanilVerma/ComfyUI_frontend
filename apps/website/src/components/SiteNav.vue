@@ -9,7 +9,10 @@ const { locale = 'en' } = defineProps<{ locale?: Locale }>()
 const mobileMenuOpen = ref(false)
 
 const navLinks = computed(() => [
-  { label: t('nav.enterprise', locale), href: localePath('/enterprise', locale) },
+  {
+    label: t('nav.enterprise', locale),
+    href: localePath('/enterprise', locale)
+  },
   { label: t('nav.gallery', locale), href: localePath('/gallery', locale) },
   { label: t('nav.about', locale), href: localePath('/about', locale) },
   { label: t('nav.careers', locale), href: localePath('/careers', locale) }
@@ -35,13 +38,16 @@ onUnmounted(() => {
 
 <template>
   <nav
-    class="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md"
+    class="fixed inset-x-0 top-0 z-50 bg-black/80 backdrop-blur-md"
     :aria-label="t('nav.ariaLabel', locale)"
   >
     <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
       <!-- Logo -->
       <!-- eslint-disable @intlify/vue-i18n/no-raw-text -->
-      <a :href="localePath('/', locale)" class="text-2xl font-bold italic text-brand-yellow">
+      <a
+        :href="localePath('/', locale)"
+        class="text-2xl font-bold text-brand-yellow italic"
+      >
         Comfy
       </a>
       <!-- eslint-enable @intlify/vue-i18n/no-raw-text -->
