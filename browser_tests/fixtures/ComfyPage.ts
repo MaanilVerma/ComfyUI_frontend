@@ -24,6 +24,7 @@ import {
 } from './components/SidebarTab'
 import { Topbar } from './components/Topbar'
 import { CanvasHelper } from './helpers/CanvasHelper'
+import { AssetHelper } from './helpers/AssetHelper'
 import { PerformanceHelper } from './helpers/PerformanceHelper'
 import { QueueHelper } from './helpers/QueueHelper'
 import { ClipboardHelper } from './helpers/ClipboardHelper'
@@ -191,6 +192,7 @@ export class ComfyPage {
   public readonly bottomPanel: BottomPanel
   public readonly perf: PerformanceHelper
   public readonly queue: QueueHelper
+  public readonly assets: AssetHelper
 
   /** Worker index to test user ID */
   public readonly userIds: string[] = []
@@ -236,6 +238,7 @@ export class ComfyPage {
     this.bottomPanel = new BottomPanel(page)
     this.perf = new PerformanceHelper(page)
     this.queue = new QueueHelper(page)
+    this.assets = new AssetHelper(page)
   }
 
   get visibleToasts() {
