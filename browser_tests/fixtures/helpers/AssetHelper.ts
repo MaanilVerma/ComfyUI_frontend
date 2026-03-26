@@ -177,7 +177,11 @@ export class AssetHelper {
         const asset = this.store.get(id)
         if (asset) {
           const body = route.request().postDataJSON()
-          const updated = { ...asset, ...body, updated_at: new Date().toISOString() }
+          const updated = {
+            ...asset,
+            ...body,
+            updated_at: new Date().toISOString()
+          }
           this.store.set(id, updated)
           return route.fulfill({ json: updated })
         }
