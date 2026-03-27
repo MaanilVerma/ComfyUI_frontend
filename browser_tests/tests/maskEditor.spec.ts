@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
 import type { ComfyPage } from '../fixtures/ComfyPage'
@@ -30,6 +31,27 @@ test.describe('Mask Editor', () => {
       imagePreview,
       nodeId: String(loadImageNode.id)
     }
+  }
+
+  async function openMaskEditorViaCommand(comfyPage: ComfyPage) {
+    const { nodeId } = await loadImageOnNode(comfyPage)
+    await comfyPage.vueNodes.selectNode(nodeId)
+    await comfyPage.command.executeCommand('Comfy.MaskEditor.OpenMaskEditor')
+    const dialog = comfyPage.page.locator('.mask-editor-dialog')
+    await expect(dialog).toBeVisible()
+    return dialog
+  }
+
+  async function drawStrokeOnMaskEditor(page: Page) {
+    const pointerZone = page.locator('.maskEditor-ui-container').first()
+    const box = await pointerZone.boundingBox()
+    if (!box) throw new Error('PointerZone not found')
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.5)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.5, {
+      steps: 10
+    })
+    await page.mouse.up()
   }
 
   test(
@@ -86,6 +108,78 @@ test.describe('Mask Editor', () => {
 
       await expect(dialog).toHaveScreenshot(
         'mask-editor-dialog-from-context-menu.png'
+      )
+    }
+  )
+
+  test(
+    'opens mask editor via command execution',
+    { tag: ['@smoke'] },
+    async ({ comfyPage }) => {
+      const dialog = await openMaskEditorViaCommand(comfyPage)
+
+      await expect(
+        comfyPage.page.locator('.maskEditor-ui-container')
+      ).toBeVisible()
+      await expect(dialog.getByText('Mask Editor')).toBeVisible()
+      await expect(dialog).toHaveScreenshot('mask-editor-open-via-command.png')
+    }
+  )
+
+  test(
+    'cancel closes mask editor dialog without uploading',
+    { tag: ['@smoke'] },
+    async ({ comfyPage }) => {
+      const uploadRequests: string[] = []
+      await comfyPage.page.route('**/upload/mask', (route) => {
+        uploadRequests.push('mask')
+        return route.continue()
+      })
+      await comfyPage.page.route('**/upload/image', (route) => {
+        uploadRequests.push('image')
+        return route.continue()
+      })
+
+      const dialog = await openMaskEditorViaCommand(comfyPage)
+      await expect(dialog).toHaveScreenshot('mask-editor-before-cancel.png')
+      await dialog.getByRole('button', { name: /cancel/i }).click()
+
+      await expect(dialog).not.toBeVisible()
+      expect(uploadRequests).toHaveLength(0)
+      await expect(comfyPage.canvas).toHaveScreenshot(
+        'mask-editor-cancelled-canvas-state.png'
+      )
+    }
+  )
+
+  test(
+    'save closes mask editor dialog and uploads mask',
+    { tag: ['@smoke'] },
+    async ({ comfyPage }) => {
+      const uploadedPaths: string[] = []
+      await comfyPage.page.route('**/upload/mask', async (route) => {
+        const response = await route.fetch()
+        const body = await response.json()
+        if (body?.name) uploadedPaths.push(body.name)
+        return route.fulfill({ response })
+      })
+      await comfyPage.page.route('**/upload/image', async (route) => {
+        const response = await route.fetch()
+        const body = await response.json()
+        if (body?.name) uploadedPaths.push(body.name)
+        return route.fulfill({ response })
+      })
+
+      const dialog = await openMaskEditorViaCommand(comfyPage)
+      await drawStrokeOnMaskEditor(comfyPage.page)
+      await expect(dialog).toHaveScreenshot('mask-editor-after-stroke.png')
+
+      await dialog.getByRole('button', { name: /save/i }).click()
+
+      await expect(dialog).not.toBeVisible()
+      expect(uploadedPaths.length).toBeGreaterThan(0)
+      await expect(comfyPage.canvas).toHaveScreenshot(
+        'mask-editor-saved-canvas-state.png'
       )
     }
   )
