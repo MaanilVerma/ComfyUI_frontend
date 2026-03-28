@@ -4,9 +4,11 @@ import type { IFuseOptions } from 'fuse.js'
 import { computed, ref, watch } from 'vue'
 import type { Ref } from 'vue'
 
+import { isCloud } from '@/platform/distribution/types'
 import { useSettingStore } from '@/platform/settings/settingStore'
 import { useTelemetry } from '@/platform/telemetry'
 import type { TemplateInfo } from '@/platform/workflow/templates/types/template'
+import { useWorkflowTemplatesStore } from '@/platform/workflow/templates/repositories/workflowTemplatesStore'
 import { useTemplateRankingStore } from '@/stores/templateRankingStore'
 import { debounce } from 'es-toolkit/compat'
 import { api } from '@/scripts/api'
@@ -121,8 +123,21 @@ export function useTemplateFiltering(
 
   const debouncedSearchQuery = refDebounced(searchQuery, 150)
 
+  // On cloud, delegate search to the hub API instead of Fuse.js
+  if (isCloud) {
+    const workflowTemplatesStore = useWorkflowTemplatesStore()
+    watch(debouncedSearchQuery, (query) => {
+      void workflowTemplatesStore.searchHubWorkflows(query.trim())
+    })
+  }
+
   const filteredBySearch = computed(() => {
     if (!debouncedSearchQuery.value.trim()) {
+      return templatesArray.value
+    }
+
+    // On cloud, search is handled server-side — templates are already filtered
+    if (isCloud) {
       return templatesArray.value
     }
 

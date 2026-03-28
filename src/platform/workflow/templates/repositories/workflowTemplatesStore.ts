@@ -8,7 +8,12 @@ import type { NavGroupData, NavItemData } from '@/types/navTypes'
 import { generateCategoryId, getCategoryIcon } from '@/utils/categoryUtil'
 import { normalizeI18nKey } from '@/utils/formatUtil'
 
-import { adaptHubWorkflowsToCategories } from '../adapters/hubTemplateAdapter'
+import type { HubWorkflowSummary } from '@comfyorg/ingest-types'
+
+import {
+  adaptHubWorkflowsToCategories,
+  adaptHubWorkflowToTemplate
+} from '../adapters/hubTemplateAdapter'
 import { zLogoIndex } from '../schemas/templateSchema'
 import type { LogoIndex } from '../schemas/templateSchema'
 import type {
@@ -38,6 +43,12 @@ export const useWorkflowTemplatesStore = defineStore(
     const logoIndex = shallowRef<LogoIndex>({})
     const isLoaded = ref(false)
     const knownTemplateNames = ref(new Set<string>())
+
+    // Hub pagination state (cloud only)
+    const hubNextCursor = ref<string | undefined>()
+    const hubHasMore = ref(false)
+    const hubIsLoadingPage = ref(false)
+    const hubSearchQuery = ref('')
 
     const getTemplateByName = (name: string): EnhancedTemplate | undefined => {
       return enhancedTemplates.value.find((template) => template.name === name)
@@ -482,18 +493,111 @@ export const useWorkflowTemplatesStore = defineStore(
       return items
     })
 
-    async function fetchCoreTemplates() {
-      if (isCloud) {
-        const summaries = await api.listAllHubWorkflows()
+    /**
+     * Appends hub workflow summaries to the existing coreTemplates.
+     */
+    function appendHubWorkflows(summaries: HubWorkflowSummary[]) {
+      const newTemplates = summaries.map(adaptHubWorkflowToTemplate)
+      const existing = coreTemplates.value[0]
+      if (existing?.moduleName === 'hub') {
+        // Append to existing hub category
+        coreTemplates.value = [
+          {
+            ...existing,
+            templates: [...existing.templates, ...newTemplates]
+          }
+        ]
+      } else {
         coreTemplates.value = adaptHubWorkflowsToCategories(summaries)
-        // Hub templates use absolute thumbnail URLs — no logo index needed
-        // Hub has no i18n variant — skip english templates fetch
+      }
+
+      const coreNames = coreTemplates.value.flatMap((category) =>
+        category.templates.map((template) => template.name)
+      )
+      const customNames = Object.values(customTemplates.value).flat()
+      knownTemplateNames.value = new Set([...coreNames, ...customNames])
+    }
+
+    /**
+     * Loads the next page of hub workflows (cloud only).
+     */
+    async function loadHubNextPage() {
+      if (!isCloud || !hubHasMore.value || hubIsLoadingPage.value) return
+
+      hubIsLoadingPage.value = true
+      try {
+        const page = await api.fetchHubWorkflowPage({
+          limit: 20,
+          cursor: hubNextCursor.value,
+          search: hubSearchQuery.value || undefined
+        })
+        appendHubWorkflows(page.workflows as HubWorkflowSummary[])
+        hubNextCursor.value = page.next_cursor || undefined
+        hubHasMore.value = !!page.next_cursor
+      } catch (error) {
+        console.error('Error loading next hub page:', error)
+      } finally {
+        hubIsLoadingPage.value = false
+      }
+    }
+
+    /**
+     * Searches hub workflows via API (cloud only). Resets loaded data.
+     */
+    async function searchHubWorkflows(query: string) {
+      if (!isCloud) return
+
+      hubSearchQuery.value = query
+      hubNextCursor.value = undefined
+      hubIsLoadingPage.value = true
+
+      try {
+        const page = await api.fetchHubWorkflowPage({
+          limit: 20,
+          search: query || undefined
+        })
+        // Replace all templates with search results
+        coreTemplates.value = adaptHubWorkflowsToCategories(
+          page.workflows as HubWorkflowSummary[]
+        )
+        hubNextCursor.value = page.next_cursor || undefined
+        hubHasMore.value = !!page.next_cursor
 
         const coreNames = coreTemplates.value.flatMap((category) =>
           category.templates.map((template) => template.name)
         )
         const customNames = Object.values(customTemplates.value).flat()
         knownTemplateNames.value = new Set([...coreNames, ...customNames])
+      } catch (error) {
+        console.error('Error searching hub workflows:', error)
+      } finally {
+        hubIsLoadingPage.value = false
+      }
+    }
+
+    async function fetchCoreTemplates() {
+      if (isCloud) {
+        // Load first page only — subsequent pages loaded via loadHubNextPage()
+        hubSearchQuery.value = ''
+        hubNextCursor.value = undefined
+        hubIsLoadingPage.value = true
+
+        try {
+          const page = await api.fetchHubWorkflowPage({ limit: 20 })
+          coreTemplates.value = adaptHubWorkflowsToCategories(
+            page.workflows as HubWorkflowSummary[]
+          )
+          hubNextCursor.value = page.next_cursor || undefined
+          hubHasMore.value = !!page.next_cursor
+
+          const coreNames = coreTemplates.value.flatMap((category) =>
+            category.templates.map((template) => template.name)
+          )
+          const customNames = Object.values(customTemplates.value).flat()
+          knownTemplateNames.value = new Set([...coreNames, ...customNames])
+        } finally {
+          hubIsLoadingPage.value = false
+        }
         return
       }
 
@@ -609,7 +713,12 @@ export const useWorkflowTemplatesStore = defineStore(
       getTemplateByName,
       getTemplateByShareId,
       getEnglishMetadata,
-      getLogoUrl
+      getLogoUrl,
+      // Hub pagination (cloud only)
+      hubHasMore,
+      hubIsLoadingPage,
+      loadHubNextPage,
+      searchHubWorkflows
     }
   }
 )

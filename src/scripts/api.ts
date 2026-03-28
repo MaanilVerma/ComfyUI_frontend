@@ -62,8 +62,7 @@ import type {
 import type { ComfyNodeDef } from '@/schemas/nodeDefSchema'
 import type {
   HubWorkflowDetail,
-  HubWorkflowListResponse,
-  HubWorkflowSummary
+  HubWorkflowListResponse
 } from '@comfyorg/ingest-types'
 import {
   zHubWorkflowDetail,
@@ -837,16 +836,17 @@ export class ComfyApi extends EventTarget {
   }
 
   /**
-   * Fetches a single page of hub workflows. Only pagination params (limit, cursor)
-   * are sent — no filtering is applied so the caller always gets the full list.
+   * Fetches a single page of hub workflows with optional search.
    */
-  private async fetchHubWorkflowPage(
-    limit: number,
+  async fetchHubWorkflowPage(params?: {
+    limit?: number
     cursor?: string
-  ): Promise<HubWorkflowListResponse> {
+    search?: string
+  }): Promise<HubWorkflowListResponse> {
     const query = new URLSearchParams()
-    query.set('limit', String(limit))
-    if (cursor) query.set('cursor', cursor)
+    query.set('limit', String(params?.limit ?? 20))
+    if (params?.cursor) query.set('cursor', params.cursor)
+    if (params?.search) query.set('search', params.search)
     // TODO: Remove after production has approved data — fetch all statuses for testing
     query.set('status', 'pending,approved,rejected,deprecated')
     const res = await this.fetchApi(`/hub/workflows?${query.toString()}`)
@@ -859,20 +859,6 @@ export class ComfyApi extends EventTarget {
       throw new Error('Invalid hub workflow list response')
     }
     return parsed.data
-  }
-
-  /**
-   * Lists all hub workflows by paginating through all pages.
-   */
-  async listAllHubWorkflows(): Promise<HubWorkflowSummary[]> {
-    const all: HubWorkflowSummary[] = []
-    let cursor: string | undefined
-    do {
-      const page = await this.fetchHubWorkflowPage(100, cursor)
-      all.push(...(page.workflows as HubWorkflowSummary[]))
-      cursor = page.next_cursor || undefined
-    } while (cursor)
-    return all
   }
 
   /**
