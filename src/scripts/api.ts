@@ -847,6 +847,8 @@ export class ComfyApi extends EventTarget {
     const query = new URLSearchParams()
     query.set('limit', String(limit))
     if (cursor) query.set('cursor', cursor)
+    // TODO: Remove after production has approved data — fetch all statuses for testing
+    query.set('status', 'pending,approved,rejected,deprecated')
     const res = await this.fetchApi(`/hub/workflows?${query.toString()}`)
     if (!res.ok) {
       throw new Error(`Failed to list hub workflows: ${res.status}`)
