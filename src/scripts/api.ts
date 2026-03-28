@@ -837,21 +837,17 @@ export class ComfyApi extends EventTarget {
   }
 
   /**
-   * Lists hub workflows with optional filtering and pagination.
+   * Fetches a single page of hub workflows. Only pagination params (limit, cursor)
+   * are sent — no filtering is applied so the caller always gets the full list.
    */
-  async listHubWorkflows(params?: {
+  private async fetchHubWorkflowPage(
+    limit: number,
     cursor?: string
-    limit?: number
-    search?: string
-    tag?: string
-  }): Promise<HubWorkflowListResponse> {
+  ): Promise<HubWorkflowListResponse> {
     const query = new URLSearchParams()
-    if (params?.cursor) query.set('cursor', params.cursor)
-    if (params?.limit) query.set('limit', String(params.limit))
-    if (params?.search) query.set('search', params.search)
-    if (params?.tag) query.set('tag', params.tag)
-    const qs = query.toString()
-    const res = await this.fetchApi(`/hub/workflows${qs ? `?${qs}` : ''}`)
+    query.set('limit', String(limit))
+    if (cursor) query.set('cursor', cursor)
+    const res = await this.fetchApi(`/hub/workflows?${query.toString()}`)
     if (!res.ok) {
       throw new Error(`Failed to list hub workflows: ${res.status}`)
     }
@@ -870,9 +866,9 @@ export class ComfyApi extends EventTarget {
     const all: HubWorkflowSummary[] = []
     let cursor: string | undefined
     do {
-      const res = await this.listHubWorkflows({ limit: 100, cursor })
-      all.push(...(res.workflows as HubWorkflowSummary[]))
-      cursor = res.next_cursor || undefined
+      const page = await this.fetchHubWorkflowPage(100, cursor)
+      all.push(...(page.workflows as HubWorkflowSummary[]))
+      cursor = page.next_cursor || undefined
     } while (cursor)
     return all
   }
