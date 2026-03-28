@@ -19,10 +19,9 @@ async function selectSubgraphAndOpenEditor(
   comfyPage: ComfyPage,
   nodeTitle: string
 ) {
-  const subgraphNode = (
-    await comfyPage.nodeOps.getNodeRefsByTitle(nodeTitle)
-  )[0]
-  await subgraphNode.click('title')
+  const subgraphNodes = await comfyPage.nodeOps.getNodeRefsByTitle(nodeTitle)
+  expect(subgraphNodes.length).toBeGreaterThan(0)
+  await subgraphNodes[0].click('title')
 
   await ensurePropertiesPanel(comfyPage)
 
@@ -130,10 +129,10 @@ test.describe(
         await comfyPage.workflow.loadWorkflow(
           'subgraphs/subgraph-nested-promotion'
         )
-        const subgraphNode = (
+        const subgraphNodes =
           await comfyPage.nodeOps.getNodeRefsByTitle('Sub 0')
-        )[0]
-        await subgraphNode.click('title')
+        expect(subgraphNodes.length).toBeGreaterThan(0)
+        await subgraphNodes[0].click('title')
 
         const panel = await ensurePropertiesPanel(comfyPage)
 
@@ -143,9 +142,11 @@ test.describe(
         await expect(moreButtons.first()).toBeVisible()
         await moreButtons.first().click()
 
-        await expect(comfyPage.page.getByText('Hide input')).toHaveCount(0)
-        await expect(comfyPage.page.getByText('Show input')).toHaveCount(0)
-        await expect(comfyPage.page.getByText('Rename')).toBeVisible()
+        const menu = comfyPage.page.getByTestId(TestIds.menu.moreMenuContent)
+        await expect(menu).toBeVisible()
+        await expect(menu.getByText('Hide input')).toHaveCount(0)
+        await expect(menu.getByText('Show input')).toHaveCount(0)
+        await expect(menu.getByText('Rename')).toBeVisible()
       })
     })
   }
