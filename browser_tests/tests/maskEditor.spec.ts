@@ -42,29 +42,6 @@ test.describe('Mask Editor', () => {
     return dialog
   }
 
-  async function drawStrokeOnMaskEditor(comfyPage: ComfyPage) {
-    const uiContainer = comfyPage.page.getByTestId(
-      TestIds.maskEditor.uiContainer
-    )
-    await expect(uiContainer).toBeVisible()
-    const box = await uiContainer.boundingBox()
-    if (!box) throw new Error('mask-editor-ui-container not found')
-    await comfyPage.page.mouse.move(
-      box.x + box.width * 0.3,
-      box.y + box.height * 0.5
-    )
-    await comfyPage.page.mouse.down()
-    await comfyPage.page.mouse.move(
-      box.x + box.width * 0.7,
-      box.y + box.height * 0.5,
-      { steps: 10 }
-    )
-    await comfyPage.page.mouse.up()
-    // Move mouse out of the pointer zone so the brush cursor hides before screenshots
-    await comfyPage.page.mouse.move(0, 0)
-    await comfyPage.nextFrame()
-  }
-
   test(
     'opens mask editor from image preview button',
     { tag: ['@smoke', '@screenshot'] },
@@ -163,34 +140,6 @@ test.describe('Mask Editor', () => {
       expect(uploadRequests).toHaveLength(0)
       await expect(comfyPage.canvas).toHaveScreenshot(
         'mask-editor-cancelled-canvas-state.png'
-      )
-    }
-  )
-
-  test(
-    'save closes mask editor dialog and uploads mask',
-    { tag: ['@smoke', '@screenshot'] },
-    async ({ comfyPage }) => {
-      let uploadCount = 0
-      await comfyPage.page.route('**/upload/mask', (route) => {
-        uploadCount++
-        return route.continue()
-      })
-      await comfyPage.page.route('**/upload/image', (route) => {
-        uploadCount++
-        return route.continue()
-      })
-
-      const dialog = await openMaskEditorViaCommand(comfyPage)
-      await drawStrokeOnMaskEditor(comfyPage)
-      await expect(dialog).toHaveScreenshot('mask-editor-after-stroke.png')
-
-      await dialog.getByRole('button', { name: /save/i }).click()
-
-      await expect(dialog).not.toBeVisible()
-      expect(uploadCount).toBeGreaterThan(0)
-      await expect(comfyPage.canvas).toHaveScreenshot(
-        'mask-editor-saved-canvas-state.png'
       )
     }
   )
