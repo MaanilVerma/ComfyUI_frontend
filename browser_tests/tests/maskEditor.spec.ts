@@ -60,6 +60,8 @@ test.describe('Mask Editor', () => {
       { steps: 10 }
     )
     await comfyPage.page.mouse.up()
+    // Move mouse out of the pointer zone so the brush cursor hides before screenshots
+    await comfyPage.page.mouse.move(0, 0)
     await comfyPage.nextFrame()
   }
 
