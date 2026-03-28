@@ -75,6 +75,24 @@ await page.evaluate(() => {
 // Keep app.extensionManager typed as ExtensionManager, not WorkspaceStore
 ```
 
+## Custom Assertions
+
+Existing `comfyExpect` matchers (`toBePinned`, `toBeBypassed`, `toBeCollapsed`, `toHaveFocus`) are fine to use in existing and new tests.
+
+**For NEW assertions**: Add assertion methods directly on the page object or helper class instead of extending `comfyExpect`. Page object methods are discoverable via IntelliSense without special imports.
+
+```typescript
+// ✅ Preferred for new assertions
+await node.expectPinned()
+await node.expectBypassed()
+
+// ✅ Acceptable (existing matchers)
+import { comfyExpect as expect } from '../fixtures/ComfyPage'
+await expect(node).toBePinned()
+
+// ❌ Do not add new custom matchers to comfyExpect
+```
+
 ## Test Tags
 
 Tags are respected by config:
