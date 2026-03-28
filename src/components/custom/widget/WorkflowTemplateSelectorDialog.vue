@@ -339,7 +339,7 @@
 
           <!-- Loading More Skeletons -->
           <CardContainer
-            v-for="n in effectiveIsLoading ? 6 : 0"
+            v-for="n in isLoadingMore ? 6 : 0"
             :key="`skeleton-${n}`"
             size="compact"
             variant="ghost"
@@ -371,11 +371,11 @@
 
       <!-- Load More Trigger -->
       <div
-        v-if="!isLoading && effectiveHasMore"
+        v-if="!isLoading && hasMoreTemplates"
         ref="loadTrigger"
         class="mt-4 flex h-4 w-full items-center justify-center"
       >
-        <div v-if="effectiveIsLoading" class="text-sm text-muted">
+        <div v-if="isLoadingMore" class="text-sm text-muted">
           {{ $t('templateWorkflows.loadingMore', 'Loading more...') }}
         </div>
       </div>
@@ -769,35 +769,13 @@ const {
 
 // Display templates (all when searching, paginated when not)
 const displayTemplates = computed(() => {
-  if (isCloud) {
-    // On cloud, all loaded templates are displayed (server handles pagination)
-    return filteredTemplates.value
-  }
   return shouldUsePagination.value
     ? paginatedTemplates.value
     : filteredTemplates.value
 })
 
-// Effective "has more" and "is loading" that unify client/server pagination
-const effectiveHasMore = computed(() =>
-  isCloud ? workflowTemplatesStore.hubHasMore : hasMoreTemplates.value
-)
-const effectiveIsLoading = computed(() =>
-  isCloud ? workflowTemplatesStore.hubIsLoadingPage : isLoadingMore.value
-)
-
 // Set up intersection observer for lazy loading
 useIntersectionObserver(loadTrigger, () => {
-  if (isCloud) {
-    if (
-      workflowTemplatesStore.hubHasMore &&
-      !workflowTemplatesStore.hubIsLoadingPage
-    ) {
-      void workflowTemplatesStore.loadHubNextPage()
-    }
-    return
-  }
-
   if (
     shouldUsePagination.value &&
     hasMoreTemplates.value &&
