@@ -75,6 +75,31 @@ await page.evaluate(() => {
 // Keep app.extensionManager typed as ExtensionManager, not WorkspaceStore
 ```
 
+## Test Structure: Arrange/Act/Assert
+
+1. All mock setup, state resets, and fixture arrangement must happen in `test.beforeEach()` or Playwright fixtures
+2. Inside the `test()` body, only act (user actions) and assert
+3. Never call `clearAllMocks` or reset mock state mid-test — a real user can't clear mocks, so tests shouldn't either
+
+```typescript
+// ✅ Good
+test.beforeEach(async ({ comfyPage }) => {
+  await comfyPage.workflow.loadWorkflow('test.json')
+})
+test('should do something', async ({ comfyPage }) => {
+  // Act: user clicks something
+  await comfyPage.menu.topbar.click()
+  // Assert: result is visible
+  await expect(comfyPage.menu.nodeLibraryTab.root).toBeVisible()
+})
+
+// ❌ Bad — setup mid-test
+test('should do something', async ({ comfyPage }) => {
+  await comfyPage.workflow.loadWorkflow('test.json') // should be in beforeEach
+  await comfyPage.menu.topbar.click()
+})
+```
+
 ## Test Tags
 
 Tags are respected by config:
