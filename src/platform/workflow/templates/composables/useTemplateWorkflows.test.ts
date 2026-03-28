@@ -58,6 +58,7 @@ describe('useTemplateWorkflows', () => {
     mockWorkflowTemplatesStore = {
       isLoaded: false,
       loadWorkflowTemplates: vi.fn().mockResolvedValue(true),
+      getTemplateByName: vi.fn().mockReturnValue(undefined),
       groupedTemplates: [
         {
           label: 'ComfyUI Examples',

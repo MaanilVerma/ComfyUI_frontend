@@ -35,6 +35,21 @@ vi.mock(
   () => preservedQueryMocks
 )
 
+// Mock the workflow templates store
+vi.mock(
+  '@/platform/workflow/templates/repositories/workflowTemplatesStore',
+  () => ({
+    useWorkflowTemplatesStore: vi.fn(() => ({
+      getTemplateByShareId: vi.fn().mockReturnValue(undefined)
+    }))
+  })
+)
+
+// Mock distribution (non-cloud for tests)
+vi.mock('@/platform/distribution/types', () => ({
+  isCloud: false
+}))
+
 // Mock template workflows composable
 const mockLoadTemplates = vi.fn().mockResolvedValue(true)
 const mockLoadWorkflowTemplate = vi.fn().mockResolvedValue(true)

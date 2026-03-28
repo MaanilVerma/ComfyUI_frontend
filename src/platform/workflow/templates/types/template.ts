@@ -64,6 +64,23 @@ export interface TemplateInfo {
    * Logo overlays to display on the template thumbnail.
    */
   logos?: LogoInfo[]
+  /**
+   * Absolute URL to the primary thumbnail (from hub API).
+   * When present, skip URL construction from name + mediaSubtype.
+   */
+  thumbnailUrl?: string
+  /**
+   * Absolute URL to the comparison thumbnail (from hub API).
+   */
+  thumbnailComparisonUrl?: string
+  /**
+   * Hub share ID for fetching workflow JSON via detail API.
+   */
+  shareId?: string
+  /**
+   * Hub profile information for the template author.
+   */
+  profile?: { username: string; display_name?: string; avatar_url?: string }
 }
 
 export enum TemplateIncludeOnDistributionEnum {

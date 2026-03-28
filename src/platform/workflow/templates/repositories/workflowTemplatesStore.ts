@@ -8,6 +8,7 @@ import type { NavGroupData, NavItemData } from '@/types/navTypes'
 import { generateCategoryId, getCategoryIcon } from '@/utils/categoryUtil'
 import { normalizeI18nKey } from '@/utils/formatUtil'
 
+import { adaptHubWorkflowsToCategories } from '../adapters/hubTemplateAdapter'
 import { zLogoIndex } from '../schemas/templateSchema'
 import type { LogoIndex } from '../schemas/templateSchema'
 import type {
@@ -25,6 +26,7 @@ interface EnhancedTemplate extends TemplateInfo {
   isEssential?: boolean
   isPartnerNode?: boolean // Computed from OpenSource === false
   searchableText?: string
+  shareId?: string
 }
 
 export const useWorkflowTemplatesStore = defineStore(
@@ -39,6 +41,14 @@ export const useWorkflowTemplatesStore = defineStore(
 
     const getTemplateByName = (name: string): EnhancedTemplate | undefined => {
       return enhancedTemplates.value.find((template) => template.name === name)
+    }
+
+    const getTemplateByShareId = (
+      shareId: string
+    ): EnhancedTemplate | undefined => {
+      return enhancedTemplates.value.find(
+        (template) => template.shareId === shareId
+      )
     }
 
     // Store filter mappings for dynamic categories
@@ -473,10 +483,24 @@ export const useWorkflowTemplatesStore = defineStore(
     })
 
     async function fetchCoreTemplates() {
+      if (isCloud) {
+        const summaries = await api.listAllHubWorkflows()
+        coreTemplates.value = adaptHubWorkflowsToCategories(summaries)
+        // Hub templates use absolute thumbnail URLs — no logo index needed
+        // Hub has no i18n variant — skip english templates fetch
+
+        const coreNames = coreTemplates.value.flatMap((category) =>
+          category.templates.map((template) => template.name)
+        )
+        const customNames = Object.values(customTemplates.value).flat()
+        knownTemplateNames.value = new Set([...coreNames, ...customNames])
+        return
+      }
+
       const locale = i18n.global.locale.value
       const [coreResult, englishResult, logoIndexResult] = await Promise.all([
         api.getCoreWorkflowTemplates(locale),
-        isCloud && locale !== 'en'
+        locale !== 'en'
           ? api.getCoreWorkflowTemplates('en')
           : Promise.resolve([]),
         fetchLogoIndex()
@@ -583,6 +607,7 @@ export const useWorkflowTemplatesStore = defineStore(
       loadWorkflowTemplates,
       knownTemplateNames,
       getTemplateByName,
+      getTemplateByShareId,
       getEnglishMetadata,
       getLogoUrl
     }

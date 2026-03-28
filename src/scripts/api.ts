@@ -60,6 +60,15 @@ import type {
   JobListItem
 } from '@/platform/remote/comfyui/jobs/jobTypes'
 import type { ComfyNodeDef } from '@/schemas/nodeDefSchema'
+import type {
+  HubWorkflowDetail,
+  HubWorkflowListResponse,
+  HubWorkflowSummary
+} from '@comfyorg/ingest-types'
+import {
+  zHubWorkflowDetail,
+  zHubWorkflowListResponse
+} from '@comfyorg/ingest-types/zod'
 import type { useAuthStore } from '@/stores/authStore'
 import type { AuthHeader } from '@/types/authTypes'
 import type { NodeExecutionId } from '@/types/nodeIdentification'
@@ -825,6 +834,65 @@ export class ComfyApi extends EventTarget {
       console.error('Error loading core workflow templates:', error)
       return []
     }
+  }
+
+  /**
+   * Lists hub workflows with optional filtering and pagination.
+   */
+  async listHubWorkflows(params?: {
+    cursor?: string
+    limit?: number
+    search?: string
+    tag?: string
+  }): Promise<HubWorkflowListResponse> {
+    const query = new URLSearchParams()
+    if (params?.cursor) query.set('cursor', params.cursor)
+    if (params?.limit) query.set('limit', String(params.limit))
+    if (params?.search) query.set('search', params.search)
+    if (params?.tag) query.set('tag', params.tag)
+    const qs = query.toString()
+    const res = await this.fetchApi(`/hub/workflows${qs ? `?${qs}` : ''}`)
+    if (!res.ok) {
+      throw new Error(`Failed to list hub workflows: ${res.status}`)
+    }
+    const data = await res.json()
+    const parsed = zHubWorkflowListResponse.safeParse(data)
+    if (!parsed.success) {
+      throw new Error('Invalid hub workflow list response')
+    }
+    return parsed.data
+  }
+
+  /**
+   * Lists all hub workflows by paginating through all pages.
+   */
+  async listAllHubWorkflows(): Promise<HubWorkflowSummary[]> {
+    const all: HubWorkflowSummary[] = []
+    let cursor: string | undefined
+    do {
+      const res = await this.listHubWorkflows({ limit: 100, cursor })
+      all.push(...(res.workflows as HubWorkflowSummary[]))
+      cursor = res.next_cursor || undefined
+    } while (cursor)
+    return all
+  }
+
+  /**
+   * Gets full details of a hub workflow including workflow JSON.
+   */
+  async getHubWorkflowDetail(shareId: string): Promise<HubWorkflowDetail> {
+    const res = await this.fetchApi(
+      `/hub/workflows/${encodeURIComponent(shareId)}`
+    )
+    if (!res.ok) {
+      throw new Error(`Failed to get hub workflow detail: ${res.status}`)
+    }
+    const data = await res.json()
+    const parsed = zHubWorkflowDetail.safeParse(data)
+    if (!parsed.success) {
+      throw new Error('Invalid hub workflow detail response')
+    }
+    return parsed.data
   }
 
   /**

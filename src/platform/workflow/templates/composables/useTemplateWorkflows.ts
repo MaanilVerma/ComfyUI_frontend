@@ -64,6 +64,15 @@ export function useTemplateWorkflows() {
     sourceModule: string,
     index = '1'
   ) => {
+    // Hub templates provide absolute thumbnail URLs
+    if (template.thumbnailUrl) {
+      if (index === '2' && template.thumbnailComparisonUrl) {
+        return template.thumbnailComparisonUrl
+      }
+      return template.thumbnailUrl
+    }
+
+    // Static path construction for local/desktop templates
     const basePath =
       sourceModule === 'default'
         ? api.fileURL(`/templates/${template.name}`)
@@ -124,6 +133,11 @@ export function useTemplateWorkflows() {
         sourceModule = template.sourceModule
       }
 
+      // Hub templates use sourceModule 'hub'
+      if (sourceModule === 'hub') {
+        sourceModule = 'default'
+      }
+
       // Regular case for normal categories
       json = await fetchTemplateJson(id, sourceModule)
 
@@ -157,6 +171,13 @@ export function useTemplateWorkflows() {
    * Fetches template JSON from the appropriate endpoint
    */
   const fetchTemplateJson = async (id: string, sourceModule: string) => {
+    // Hub templates: fetch workflow JSON via detail API using shareId
+    const template = workflowTemplatesStore.getTemplateByName(id)
+    if (isCloud && template?.shareId) {
+      const detail = await api.getHubWorkflowDetail(template.shareId)
+      return detail.workflow_json
+    }
+
     if (sourceModule === 'default') {
       // Default templates provided by frontend are served on this separate endpoint
       return fetch(api.fileURL(`/templates/${id}.json`)).then((r) => r.json())
