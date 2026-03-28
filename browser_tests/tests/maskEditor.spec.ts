@@ -3,6 +3,7 @@ import { expect } from '@playwright/test'
 
 import type { ComfyPage } from '../fixtures/ComfyPage'
 import { comfyPageFixture as test } from '../fixtures/ComfyPage'
+import { TestIds } from '../fixtures/selectors'
 
 test.describe('Mask Editor', () => {
   test.beforeEach(async ({ comfyPage }) => {
@@ -37,13 +38,14 @@ test.describe('Mask Editor', () => {
     const { nodeId } = await loadImageOnNode(comfyPage)
     await comfyPage.vueNodes.selectNode(nodeId)
     await comfyPage.command.executeCommand('Comfy.MaskEditor.OpenMaskEditor')
-    const dialog = comfyPage.page.locator('.mask-editor-dialog')
+    const dialog = comfyPage.page.getByTestId(TestIds.maskEditor.dialog)
     await expect(dialog).toBeVisible()
     return dialog
   }
 
   async function drawStrokeOnMaskEditor(page: Page) {
-    const pointerZone = page.locator('.maskEditor-ui-container').first()
+    const pointerZone = page.getByTestId(TestIds.maskEditor.uiContainer).first()
+    await expect(pointerZone).toBeVisible()
     const box = await pointerZone.boundingBox()
     if (!box) throw new Error('PointerZone not found')
     await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.5)
@@ -64,7 +66,7 @@ test.describe('Mask Editor', () => {
       await imagePreview.getByRole('region').hover()
       await comfyPage.page.getByLabel('Edit or mask image').click()
 
-      const dialog = comfyPage.page.locator('.mask-editor-dialog')
+      const dialog = comfyPage.page.getByTestId(TestIds.maskEditor.dialog)
       await expect(dialog).toBeVisible()
 
       await expect(
@@ -75,7 +77,9 @@ test.describe('Mask Editor', () => {
       await expect(canvasContainer).toBeVisible()
       await expect(canvasContainer.locator('canvas')).toHaveCount(4)
 
-      await expect(dialog.locator('.maskEditor-ui-container')).toBeVisible()
+      await expect(
+        dialog.getByTestId(TestIds.maskEditor.uiContainer)
+      ).toBeVisible()
       await expect(dialog.getByText('Save')).toBeVisible()
       await expect(dialog.getByText('Cancel')).toBeVisible()
 
@@ -100,7 +104,7 @@ test.describe('Mask Editor', () => {
 
       await contextMenu.getByText('Open in Mask Editor').click()
 
-      const dialog = comfyPage.page.locator('.mask-editor-dialog')
+      const dialog = comfyPage.page.getByTestId(TestIds.maskEditor.dialog)
       await expect(dialog).toBeVisible()
       await expect(
         dialog.getByRole('heading', { name: 'Mask Editor' })
@@ -119,7 +123,7 @@ test.describe('Mask Editor', () => {
       const dialog = await openMaskEditorViaCommand(comfyPage)
 
       await expect(
-        comfyPage.page.locator('.maskEditor-ui-container')
+        comfyPage.page.getByTestId(TestIds.maskEditor.uiContainer)
       ).toBeVisible()
       await expect(dialog.getByText('Mask Editor')).toBeVisible()
       await expect(dialog).toHaveScreenshot('mask-editor-open-via-command.png')
@@ -156,17 +160,18 @@ test.describe('Mask Editor', () => {
     'save closes mask editor dialog and uploads mask',
     { tag: ['@smoke'] },
     async ({ comfyPage }) => {
-      const uploadedPaths: string[] = []
+      const maskUploads: string[] = []
+      const imageUploads: string[] = []
       await comfyPage.page.route('**/upload/mask', async (route) => {
         const response = await route.fetch()
         const body = await response.json()
-        if (body?.name) uploadedPaths.push(body.name)
+        if (body?.name) maskUploads.push(body.name)
         return route.fulfill({ response })
       })
       await comfyPage.page.route('**/upload/image', async (route) => {
         const response = await route.fetch()
         const body = await response.json()
-        if (body?.name) uploadedPaths.push(body.name)
+        if (body?.name) imageUploads.push(body.name)
         return route.fulfill({ response })
       })
 
@@ -177,7 +182,7 @@ test.describe('Mask Editor', () => {
       await dialog.getByRole('button', { name: /save/i }).click()
 
       await expect(dialog).not.toBeVisible()
-      expect(uploadedPaths.length).toBeGreaterThan(0)
+      expect(maskUploads.length + imageUploads.length).toBeGreaterThan(0)
       await expect(comfyPage.canvas).toHaveScreenshot(
         'mask-editor-saved-canvas-state.png'
       )
