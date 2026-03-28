@@ -134,6 +134,8 @@ test.describe('Mask Editor', () => {
     'cancel closes mask editor dialog without uploading',
     { tag: ['@smoke'] },
     async ({ comfyPage }) => {
+      const dialog = await openMaskEditorViaCommand(comfyPage)
+
       const uploadRequests: string[] = []
       await comfyPage.page.route('**/upload/mask', (route) => {
         uploadRequests.push('mask')
@@ -143,8 +145,6 @@ test.describe('Mask Editor', () => {
         uploadRequests.push('image')
         return route.continue()
       })
-
-      const dialog = await openMaskEditorViaCommand(comfyPage)
       await expect(dialog).toHaveScreenshot('mask-editor-before-cancel.png')
       await dialog.getByRole('button', { name: /cancel/i }).click()
 
