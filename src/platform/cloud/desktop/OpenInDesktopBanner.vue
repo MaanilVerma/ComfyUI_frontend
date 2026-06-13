@@ -1,46 +1,66 @@
 <template>
-  <div
-    v-if="visible"
-    class="fixed inset-x-0 top-0 z-1100 flex items-center justify-center gap-3 bg-secondary-background px-4 py-2 text-base-foreground shadow-sm"
-    role="region"
-    :aria-label="t('openInDesktop.action')"
-  >
-    <i
-      class="icon-[lucide--monitor] size-4 text-text-secondary"
-      aria-hidden="true"
-    />
-    <span class="font-inter text-[12px] leading-normal">
-      {{ t('openInDesktop.message') }}
-    </span>
-    <button
-      type="button"
-      class="rounded-md bg-primary-background px-3 py-1 font-inter text-[12px] font-medium text-base-foreground transition-colors hover:bg-primary-background-hover"
-      @click="openInDesktop"
+  <Transition name="open-in-desktop-banner">
+    <div
+      v-if="visible"
+      class="fixed inset-x-0 top-0 z-1100 border-b border-muted bg-secondary-background"
+      role="region"
+      :aria-label="t('openInDesktop.title')"
+      @keydown.esc="dismiss"
     >
-      {{ t('openInDesktop.action') }}
-    </button>
-    <a
-      :href="DESKTOP_DOWNLOAD_URL"
-      target="_blank"
-      rel="noopener noreferrer"
-      class="font-inter text-[12px] text-text-secondary underline-offset-2 hover:underline"
-    >
-      {{ t('openInDesktop.getApp') }}
-    </a>
-    <button
-      type="button"
-      class="ml-1 flex size-6 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-secondary-background-hover"
-      :aria-label="t('openInDesktop.dismiss')"
-      @click="dismiss"
-    >
-      <i class="icon-[lucide--x] size-4" aria-hidden="true" />
-    </button>
-  </div>
+      <div class="mx-auto flex h-12 w-full max-w-6xl items-center gap-3 px-3">
+        <span
+          class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-base-background text-text-secondary"
+        >
+          <i class="icon-[lucide--monitor-down] size-4" aria-hidden="true" />
+        </span>
+
+        <div class="flex min-w-0 flex-1 flex-col justify-center">
+          <span
+            class="truncate font-inter text-[13px] leading-tight font-medium text-base-foreground"
+          >
+            {{ t('openInDesktop.title') }}
+          </span>
+          <span
+            class="hidden truncate font-inter text-[11px] leading-tight text-text-secondary sm:block"
+          >
+            {{ t('openInDesktop.message') }}
+          </span>
+        </div>
+
+        <Button
+          as="a"
+          variant="link"
+          size="sm"
+          :href="DESKTOP_DOWNLOAD_URL"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hidden sm:inline-flex"
+        >
+          {{ t('openInDesktop.getApp') }}
+        </Button>
+
+        <Button variant="primary" size="md" @click="openInDesktop">
+          <i class="icon-[lucide--external-link]" aria-hidden="true" />
+          {{ t('openInDesktop.action') }}
+        </Button>
+
+        <Button
+          variant="textonly"
+          size="icon"
+          :aria-label="t('openInDesktop.dismiss')"
+          @click="dismiss"
+        >
+          <i class="icon-[lucide--x]" aria-hidden="true" />
+        </Button>
+      </div>
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
+import Button from '@/components/ui/button/Button.vue'
 import {
   DESKTOP_DOWNLOAD_URL,
   useOpenInDesktopBanner
@@ -49,3 +69,18 @@ import {
 const { t } = useI18n()
 const { visible, openInDesktop, dismiss } = useOpenInDesktopBanner()
 </script>
+
+<style scoped>
+.open-in-desktop-banner-enter-active,
+.open-in-desktop-banner-leave-active {
+  transition:
+    transform 0.22s ease,
+    opacity 0.22s ease;
+}
+
+.open-in-desktop-banner-enter-from,
+.open-in-desktop-banner-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+</style>
