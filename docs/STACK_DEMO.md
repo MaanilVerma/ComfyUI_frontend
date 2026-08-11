@@ -8,3 +8,6 @@ The bottom of the stack. This PR targets `main`.
 
 ## Slice 2 — how it stacks
 This PR targets slice 1's branch, not main. Its diff shows only this section.
+
+## Slice 3 — the merge
+The top. Merging bottom-up lands 1, then 2, then 3, and GitHub auto-retargets.
